@@ -10,6 +10,19 @@
   <h1>Few Bars</h1>
   <p class="subtitle">Tap a key</p>
 
+  <div id="key-select" class="key-select">
+    <label for="key-input">Key</label>
+    <select id="key-input">
+      <option value="C">C major</option>
+      <option value="G">G major (1♯)</option>
+      <option value="D">D major (2♯)</option>
+      <option value="A">A major (3♯)</option>
+      <option value="F">F major (1♭)</option>
+      <option value="Bb">B♭ major (2♭)</option>
+      <option value="Eb">E♭ major (3♭)</option>
+    </select>
+  </div>
+
   <div id="durations" class="durations">
     <button class="duration" data-duration="whole">Whole</button>
     <button class="duration" data-duration="half">Half</button>
@@ -18,14 +31,23 @@
   </div>
 
   <div id="piano" class="piano">
-    <button class="key" data-note="C4">C</button>
-    <button class="key" data-note="D4">D</button>
-    <button class="key" data-note="E4">E</button>
-    <button class="key" data-note="F4">F</button>
-    <button class="key" data-note="G4">G</button>
-    <button class="key" data-note="A4">A</button>
-    <button class="key" data-note="B4">B</button>
-    <button class="key" data-note="C5">C</button>
+    <div class="white-keys">
+      <button class="key white" data-note="C4">C</button>
+      <button class="key white" data-note="D4">D</button>
+      <button class="key white" data-note="E4">E</button>
+      <button class="key white" data-note="F4">F</button>
+      <button class="key white" data-note="G4">G</button>
+      <button class="key white" data-note="A4">A</button>
+      <button class="key white" data-note="B4">B</button>
+      <button class="key white" data-note="C5">C</button>
+    </div>
+    <div class="black-keys">
+      <button class="key black"></button>
+      <button class="key black"></button>
+      <button class="key black"></button>
+      <button class="key black"></button>
+      <button class="key black"></button>
+    </div>
   </div>
 
   <p id="message" class="message"></p>

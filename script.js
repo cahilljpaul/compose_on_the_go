@@ -1,13 +1,72 @@
-const NOTE_FREQUENCIES = {
-  C4: 261.63,
-  D4: 293.66,
-  E4: 329.63,
-  F4: 349.23,
-  G4: 392.0,
-  A4: 440.0,
-  B4: 493.88,
-  C5: 523.25,
+// Pitches are stored as strings like "C4", "F#4", "Bb4": a letter A-G,
+// an optional accidental (# or b), and an octave digit.
+const LETTER_SEMITONE = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+const LETTER_ORDER = ["C", "D", "E", "F", "G", "A", "B"];
+
+function parsePitch(pitchStr) {
+  const [, letter, accidental = "", octave] = pitchStr.match(/^([A-G])(#|b)?(\d)$/);
+  return { letter, accidental, octave: Number(octave) };
+}
+
+function semitonesFromC4(letter, accidental, octave) {
+  const offset = accidental === "#" ? 1 : accidental === "b" ? -1 : 0;
+  return LETTER_SEMITONE[letter] + offset + (octave - 4) * 12;
+}
+
+function frequencyForPitch(pitchStr) {
+  const { letter, accidental, octave } = parsePitch(pitchStr);
+  const semitonesFromA4 = semitonesFromC4(letter, accidental, octave) - 9;
+  return 440 * Math.pow(2, semitonesFromA4 / 12);
+}
+
+// Vertical stave position, in half-line-spacing steps up from the bottom
+// line (E4). Alternating lines/spaces; accidentals don't affect this.
+function stepForPitch(pitchStr) {
+  const { letter, octave } = parsePitch(pitchStr);
+  return (LETTER_ORDER.indexOf(letter) - LETTER_ORDER.indexOf("E")) + (octave - 4) * 7;
+}
+
+function semitoneOfPitch(pitchStr) {
+  const { letter, accidental, octave } = parsePitch(pitchStr);
+  return semitonesFromC4(letter, accidental, octave);
+}
+
+const SHARP_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+const FLAT_NAMES = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"];
+
+// Curated set of common major keys, each with the letters altered by its
+// key signature (in standard order) and whether it uses sharps or flats.
+const KEYS = {
+  C: { label: "C major", accidentals: [], type: "" },
+  G: { label: "G major (1♯)", accidentals: ["F"], type: "#" },
+  D: { label: "D major (2♯)", accidentals: ["F", "C"], type: "#" },
+  A: { label: "A major (3♯)", accidentals: ["F", "C", "G"], type: "#" },
+  F: { label: "F major (1♭)", accidentals: ["B"], type: "b" },
+  Bb: { label: "B♭ major (2♭)", accidentals: ["B", "E"], type: "b" },
+  Eb: { label: "E♭ major (3♭)", accidentals: ["B", "E", "A"], type: "b" },
 };
+
+// Octave used to draw each possible key-signature letter, chosen to stay
+// within the stave range this app already renders (C4-C5).
+const KEY_SIG_OCTAVE = { F: 4, C: 5, G: 4, B: 4, E: 4, A: 4 };
+
+let selectedKey = "C";
+
+function keyPrefersFlats() {
+  return KEYS[selectedKey].type === "b";
+}
+
+function keyAccidentalForLetter(letter) {
+  const key = KEYS[selectedKey];
+  return key.accidentals.includes(letter) ? key.type : "";
+}
+
+function spellSemitone(semitone) {
+  const table = keyPrefersFlats() ? FLAT_NAMES : SHARP_NAMES;
+  const octave = 4 + Math.floor(semitone / 12);
+  const name = table[((semitone % 12) + 12) % 12];
+  return `${name}${octave}`;
+}
 
 const DURATION_BEATS = {
   whole: 4,
@@ -40,7 +99,7 @@ function scheduleNoteOn(ctx, pitch, seconds, startTime) {
   const gain = ctx.createGain();
 
   oscillator.type = "sine";
-  oscillator.frequency.value = NOTE_FREQUENCIES[pitch];
+  oscillator.frequency.value = frequencyForPitch(pitch);
 
   gain.gain.setValueAtTime(0, startTime);
   gain.gain.linearRampToValueAtTime(0.3, startTime + 0.01);
@@ -151,19 +210,6 @@ function groupIntoBars() {
   return bars;
 }
 
-// Vertical position of each pitch, in half-line-spacing steps up from the
-// bottom stave line (E4). Alternating lines/spaces of a treble stave.
-const NOTE_STEP = {
-  C4: -2,
-  D4: -1,
-  E4: 0,
-  F4: 1,
-  G4: 2,
-  A4: 3,
-  B4: 4,
-  C5: 5,
-};
-
 const LINE_SPACING = 10;
 const HALF_STEP = LINE_SPACING / 2;
 const BOTTOM_LINE_Y = 90;
@@ -174,7 +220,7 @@ const CLEF_WIDTH = 60;
 const SVG_HEIGHT = 150;
 
 function pitchY(pitch) {
-  return BOTTOM_LINE_Y - NOTE_STEP[pitch] * HALF_STEP;
+  return BOTTOM_LINE_Y - stepForPitch(pitch) * HALF_STEP;
 }
 
 function svgEl(tag, attrs) {
@@ -205,15 +251,39 @@ function drawClef(svg) {
   svg.appendChild(clef);
 }
 
-function drawNote(svg, x, note, index, interactive) {
+function keySignatureWidth() {
+  const count = KEYS[selectedKey].accidentals.length;
+  return count === 0 ? 0 : count * 11 + 6;
+}
+
+function drawKeySignature(svg) {
+  const key = KEYS[selectedKey];
+  if (key.accidentals.length === 0) return;
+  const glyph = key.type === "#" ? "♯" : "♭";
+  key.accidentals.forEach((letter, i) => {
+    const y = pitchY(`${letter}${KEY_SIG_OCTAVE[letter]}`);
+    const el = svgEl("text", { x: CLEF_WIDTH + 4 + i * 11, y: y + 5, "font-size": 16, fill: "#333" });
+    el.textContent = glyph;
+    svg.appendChild(el);
+  });
+}
+
+function drawNote(svg, x, note, index, interactive, accidentalSymbol) {
   const y = pitchY(note.pitch);
+  const { letter, octave } = parsePitch(note.pitch);
   const isHollow = note.duration === "whole" || note.duration === "half";
   const hasStem = note.duration !== "whole";
 
-  if (note.pitch === "C4") {
+  if (letter === "C" && octave === 4) {
     svg.appendChild(
       svgEl("line", { x1: x - 9, y1: y, x2: x + 9, y2: y, stroke: "#333", "stroke-width": 1 })
     );
+  }
+
+  if (accidentalSymbol) {
+    const accEl = svgEl("text", { x: x - 15, y: y + 4, "font-size": 13, fill: "#222" });
+    accEl.textContent = accidentalSymbol;
+    svg.appendChild(accEl);
   }
 
   const isSelected = interactive && index === selectedNoteIndex;
@@ -253,18 +323,30 @@ function drawNote(svg, x, note, index, interactive) {
 }
 
 function staveWidth(bars) {
-  return CLEF_WIDTH + melody.length * NOTE_SLOT_WIDTH + bars.length * BAR_LINE_GAP + 20;
+  return (
+    CLEF_WIDTH + keySignatureWidth() + melody.length * NOTE_SLOT_WIDTH + bars.length * BAR_LINE_GAP + 20
+  );
 }
 
 function buildStaveContent(container, bars, width, interactive = false) {
   drawStaveLines(container, width);
   drawClef(container);
+  drawKeySignature(container);
 
-  let x = CLEF_WIDTH + 20;
+  let x = CLEF_WIDTH + keySignatureWidth() + 20;
   let index = 0;
   bars.forEach((bar) => {
+    // Accidentals apply for the rest of the bar once written, then reset.
+    const barAccidentals = {};
     bar.forEach((note) => {
-      drawNote(container, x, note, index, interactive);
+      const { letter, accidental, octave } = parsePitch(note.pitch);
+      const trackKey = `${letter}${octave}`;
+      const assumed = trackKey in barAccidentals ? barAccidentals[trackKey] : keyAccidentalForLetter(letter);
+      const accidentalSymbol =
+        accidental !== assumed ? (accidental === "#" ? "♯" : accidental === "b" ? "♭" : "♮") : null;
+      barAccidentals[trackKey] = accidental;
+
+      drawNote(container, x, note, index, interactive, accidentalSymbol);
       x += NOTE_SLOT_WIDTH;
       index += 1;
     });
@@ -290,7 +372,6 @@ function renderStave() {
   container.appendChild(svg);
 }
 
-const PITCH_ORDER = ["C4", "D4", "E4", "F4", "G4", "A4", "B4", "C5"];
 let selectedNoteIndex = null;
 
 function selectNote(index) {
@@ -319,9 +400,9 @@ function hideCorrectionPanel() {
 function shiftSelectedPitch(delta) {
   if (selectedNoteIndex === null) return;
   const note = melody[selectedNoteIndex];
-  const currentIndex = PITCH_ORDER.indexOf(note.pitch);
-  const nextIndex = Math.min(PITCH_ORDER.length - 1, Math.max(0, currentIndex + delta));
-  note.pitch = PITCH_ORDER[nextIndex];
+  const semitone = semitoneOfPitch(note.pitch);
+  const nextSemitone = Math.min(12, Math.max(0, semitone + delta));
+  note.pitch = spellSemitone(nextSemitone);
   renderStave();
   showCorrectionPanel();
 }
@@ -557,6 +638,32 @@ async function exportCard() {
   });
 }
 
+const BLACK_KEY_SLOTS = [
+  { semitone: 1, boundary: 1 }, // C#/Db
+  { semitone: 3, boundary: 2 }, // D#/Eb
+  { semitone: 6, boundary: 4 }, // F#/Gb
+  { semitone: 8, boundary: 5 }, // G#/Ab
+  { semitone: 10, boundary: 6 }, // A#/Bb
+];
+
+function updateBlackKeys() {
+  document.querySelectorAll(".key.black").forEach((btn, i) => {
+    const { semitone, boundary } = BLACK_KEY_SLOTS[i];
+    const pitch = spellSemitone(semitone);
+    btn.dataset.note = pitch;
+    btn.textContent = pitch.slice(0, -1);
+    btn.style.left = `${(boundary / 8) * 100}%`;
+  });
+}
+
+updateBlackKeys();
+
+document.getElementById("key-input").addEventListener("change", (event) => {
+  selectedKey = event.target.value;
+  updateBlackKeys();
+  renderStave();
+});
+
 document.querySelectorAll(".duration").forEach((button) => {
   button.addEventListener("click", () => {
     document.querySelectorAll(".duration").forEach((b) => b.classList.remove("active"));
@@ -657,16 +764,9 @@ const BEATS_TO_DURATION_NAME = { 0.5: "eighth", 1: "quarter", 2: "half", 4: "who
 const MIN_HUM_NOTE_BEATS = 0.2;
 
 function nearestAllowedPitch(freq) {
-  let best = null;
-  let bestDiff = Infinity;
-  for (const [pitch, pitchFreq] of Object.entries(NOTE_FREQUENCIES)) {
-    const diff = Math.abs(Math.log2(freq / pitchFreq));
-    if (diff < bestDiff) {
-      bestDiff = diff;
-      best = pitch;
-    }
-  }
-  return best;
+  const semitonesFromC4 = 12 * Math.log2(freq / frequencyForPitch("C4"));
+  const clamped = Math.max(0, Math.min(12, Math.round(semitonesFromC4)));
+  return spellSemitone(clamped);
 }
 
 function nearestDurationBeats(rawBeats) {
