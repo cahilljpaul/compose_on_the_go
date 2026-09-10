@@ -29,7 +29,22 @@
   </div>
 
   <p id="message" class="message"></p>
+  <p class="hint">Tap a note on the stave to correct it</p>
   <div id="melody" class="melody"></div>
+
+  <div id="correction" class="correction hidden">
+    <span id="correction-label" class="correction-label"></span>
+    <div class="correction-buttons">
+      <button id="pitch-up-btn">▲ Pitch</button>
+      <button id="pitch-down-btn">▼ Pitch</button>
+      <button class="correction-duration" data-duration="whole">Whole</button>
+      <button class="correction-duration" data-duration="half">Half</button>
+      <button class="correction-duration" data-duration="quarter">Crotchet</button>
+      <button class="correction-duration" data-duration="eighth">Quaver</button>
+      <button id="delete-note-btn">Delete</button>
+      <button id="deselect-btn">Done</button>
+    </div>
+  </div>
 
   <div id="controls" class="controls">
     <button id="play-btn">Play</button>

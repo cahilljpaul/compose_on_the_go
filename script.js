@@ -92,6 +92,9 @@ function addNote(pitch) {
 function undo() {
   if (melody.length === 0) return;
   melody.pop();
+  if (selectedNoteIndex !== null && selectedNoteIndex >= melody.length) {
+    hideCorrectionPanel();
+  }
   renderStave();
 }
 
@@ -199,7 +202,7 @@ function drawClef(svg) {
   svg.appendChild(clef);
 }
 
-function drawNote(svg, x, note, index) {
+function drawNote(svg, x, note, index, interactive) {
   const y = pitchY(note.pitch);
   const isHollow = note.duration === "whole" || note.duration === "half";
   const hasStem = note.duration !== "whole";
@@ -210,19 +213,22 @@ function drawNote(svg, x, note, index) {
     );
   }
 
-  svg.appendChild(
-    svgEl("ellipse", {
-      cx: x,
-      cy: y,
-      rx: 6,
-      ry: 4.5,
-      fill: isHollow ? "none" : "#222",
-      stroke: "#222",
-      "stroke-width": 1.2,
-      class: "notehead",
-      "data-index": index,
-    })
-  );
+  const isSelected = interactive && index === selectedNoteIndex;
+  const notehead = svgEl("ellipse", {
+    cx: x,
+    cy: y,
+    rx: 6,
+    ry: 4.5,
+    fill: isHollow ? "none" : isSelected ? "#e08b2f" : "#222",
+    stroke: isSelected ? "#e08b2f" : "#222",
+    "stroke-width": 1.2,
+    class: isSelected ? "notehead selected" : "notehead",
+    "data-index": index,
+  });
+  if (interactive) {
+    notehead.addEventListener("pointerdown", () => selectNote(index));
+  }
+  svg.appendChild(notehead);
 
   if (hasStem) {
     const stemTopY = y - 32;
@@ -247,7 +253,7 @@ function staveWidth(bars) {
   return CLEF_WIDTH + melody.length * NOTE_SLOT_WIDTH + bars.length * BAR_LINE_GAP + 20;
 }
 
-function buildStaveContent(container, bars, width) {
+function buildStaveContent(container, bars, width, interactive = false) {
   drawStaveLines(container, width);
   drawClef(container);
 
@@ -255,7 +261,7 @@ function buildStaveContent(container, bars, width) {
   let index = 0;
   bars.forEach((bar) => {
     bar.forEach((note) => {
-      drawNote(container, x, note, index);
+      drawNote(container, x, note, index, interactive);
       x += NOTE_SLOT_WIDTH;
       index += 1;
     });
@@ -276,9 +282,61 @@ function renderStave() {
   const width = staveWidth(bars);
 
   const svg = svgEl("svg", { width, height: SVG_HEIGHT, viewBox: `0 0 ${width} ${SVG_HEIGHT}` });
-  buildStaveContent(svg, bars, width);
+  buildStaveContent(svg, bars, width, true);
 
   container.appendChild(svg);
+}
+
+const PITCH_ORDER = ["C4", "D4", "E4", "F4", "G4", "A4", "B4", "C5"];
+let selectedNoteIndex = null;
+
+function selectNote(index) {
+  selectedNoteIndex = index;
+  renderStave();
+  showCorrectionPanel();
+}
+
+function showCorrectionPanel() {
+  const panel = document.getElementById("correction");
+  if (selectedNoteIndex === null || !melody[selectedNoteIndex]) {
+    panel.classList.add("hidden");
+    return;
+  }
+  const note = melody[selectedNoteIndex];
+  document.getElementById("correction-label").textContent =
+    `Note ${selectedNoteIndex + 1}: ${note.pitch} (${note.duration})`;
+  panel.classList.remove("hidden");
+}
+
+function hideCorrectionPanel() {
+  selectedNoteIndex = null;
+  document.getElementById("correction").classList.add("hidden");
+}
+
+function shiftSelectedPitch(delta) {
+  if (selectedNoteIndex === null) return;
+  const note = melody[selectedNoteIndex];
+  const currentIndex = PITCH_ORDER.indexOf(note.pitch);
+  const nextIndex = Math.min(PITCH_ORDER.length - 1, Math.max(0, currentIndex + delta));
+  note.pitch = PITCH_ORDER[nextIndex];
+  renderStave();
+  showCorrectionPanel();
+}
+
+function setSelectedDuration(durationName) {
+  if (selectedNoteIndex === null) return;
+  const note = melody[selectedNoteIndex];
+  note.duration = durationName;
+  note.beats = DURATION_BEATS[durationName];
+  renderStave();
+  showCorrectionPanel();
+}
+
+function deleteSelectedNote() {
+  if (selectedNoteIndex === null) return;
+  melody.splice(selectedNoteIndex, 1);
+  hideCorrectionPanel();
+  renderStave();
 }
 
 const CARD_PADDING_X = 20;
@@ -454,6 +512,17 @@ document.querySelectorAll(".key").forEach((key) => {
 document.getElementById("play-btn").addEventListener("click", playMelody);
 document.getElementById("undo-btn").addEventListener("click", undo);
 document.getElementById("export-btn").addEventListener("click", exportCard);
+
+document.getElementById("pitch-up-btn").addEventListener("click", () => shiftSelectedPitch(1));
+document.getElementById("pitch-down-btn").addEventListener("click", () => shiftSelectedPitch(-1));
+document.getElementById("delete-note-btn").addEventListener("click", deleteSelectedNote);
+document.getElementById("deselect-btn").addEventListener("click", () => {
+  hideCorrectionPanel();
+  renderStave();
+});
+document.querySelectorAll(".correction-duration").forEach((button) => {
+  button.addEventListener("click", () => setSelectedDuration(button.dataset.duration));
+});
 
 const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 

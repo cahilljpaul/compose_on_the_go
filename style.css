@@ -96,6 +96,62 @@ h1 {
   fill: #6b4fbb !important;
 }
 
+.notehead {
+  cursor: pointer;
+}
+
+.notehead.selected {
+  fill: #e08b2f !important;
+  stroke: #e08b2f !important;
+}
+
+.hint {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #888;
+}
+
+.correction {
+  width: 100%;
+  max-width: 480px;
+  margin-top: 10px;
+  padding: 12px;
+  background: #fff4e6;
+  border: 1px solid #f0d9b8;
+  border-radius: 8px;
+}
+
+.correction.hidden {
+  display: none;
+}
+
+.correction-label {
+  display: block;
+  font-size: 0.85rem;
+  color: #665;
+  margin-bottom: 8px;
+}
+
+.correction-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.correction-buttons button {
+  padding: 6px 12px;
+  border: 1px solid #ccc;
+  border-radius: 16px;
+  background: #fff;
+  font-size: 0.85rem;
+  color: #333;
+}
+
+#delete-note-btn {
+  color: #b33;
+  border-color: #e0b8b8;
+}
+
 .controls {
   display: flex;
   gap: 10px;
