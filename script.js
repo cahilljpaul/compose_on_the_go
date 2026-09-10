@@ -17,10 +17,12 @@ const DURATION_BEATS = {
 };
 
 const BEATS_PER_BAR = 4;
+const SECONDS_PER_BEAT = 0.4;
 
 const melody = [];
 let selectedDuration = "quarter";
 let audioContext = null;
+let isPlaying = false;
 
 function getAudioContext() {
   if (!audioContext) {
@@ -29,25 +31,27 @@ function getAudioContext() {
   return audioContext;
 }
 
-function playNote(note, beats) {
+function scheduleNote(pitch, seconds, startTime) {
   const ctx = getAudioContext();
   const oscillator = ctx.createOscillator();
   const gain = ctx.createGain();
 
   oscillator.type = "sine";
-  oscillator.frequency.value = NOTE_FREQUENCIES[note];
+  oscillator.frequency.value = NOTE_FREQUENCIES[pitch];
 
-  const seconds = beats * 0.4;
-  const now = ctx.currentTime;
-  gain.gain.setValueAtTime(0, now);
-  gain.gain.linearRampToValueAtTime(0.3, now + 0.01);
-  gain.gain.exponentialRampToValueAtTime(0.0001, now + seconds);
+  gain.gain.setValueAtTime(0, startTime);
+  gain.gain.linearRampToValueAtTime(0.3, startTime + 0.01);
+  gain.gain.exponentialRampToValueAtTime(0.0001, startTime + seconds);
 
   oscillator.connect(gain);
   gain.connect(ctx.destination);
 
-  oscillator.start(now);
-  oscillator.stop(now + seconds);
+  oscillator.start(startTime);
+  oscillator.stop(startTime + seconds);
+}
+
+function playNote(pitch, beats) {
+  scheduleNote(pitch, beats * SECONDS_PER_BEAT, getAudioContext().currentTime);
 }
 
 function beatsUsedInLastBar() {
@@ -79,6 +83,43 @@ function addNote(pitch) {
 
   melody.push({ pitch, duration: selectedDuration, beats });
   renderStave();
+}
+
+function undo() {
+  if (melody.length === 0) return;
+  melody.pop();
+  renderStave();
+}
+
+function playMelody() {
+  if (isPlaying || melody.length === 0) return;
+  isPlaying = true;
+  document.getElementById("play-btn").disabled = true;
+
+  const ctx = getAudioContext();
+  const startedAt = ctx.currentTime + 0.05;
+  let t = startedAt;
+
+  melody.forEach((note, index) => {
+    const seconds = note.beats * SECONDS_PER_BEAT;
+    scheduleNote(note.pitch, seconds, t);
+
+    const delayMs = (t - ctx.currentTime) * 1000;
+    setTimeout(() => setNoteHighlight(index, true), delayMs);
+    setTimeout(() => setNoteHighlight(index, false), delayMs + seconds * 900);
+
+    t += seconds;
+  });
+
+  setTimeout(() => {
+    isPlaying = false;
+    document.getElementById("play-btn").disabled = false;
+  }, (t - ctx.currentTime) * 1000);
+}
+
+function setNoteHighlight(index, on) {
+  const notehead = document.querySelector(`.notehead[data-index="${index}"]`);
+  if (notehead) notehead.classList.toggle("playing", on);
 }
 
 function groupIntoBars() {
@@ -153,7 +194,7 @@ function drawClef(svg) {
   svg.appendChild(clef);
 }
 
-function drawNote(svg, x, note) {
+function drawNote(svg, x, note, index) {
   const y = pitchY(note.pitch);
   const isHollow = note.duration === "whole" || note.duration === "half";
   const hasStem = note.duration !== "whole";
@@ -173,6 +214,8 @@ function drawNote(svg, x, note) {
       fill: isHollow ? "none" : "#222",
       stroke: "#222",
       "stroke-width": 1.2,
+      class: "notehead",
+      "data-index": index,
     })
   );
 
@@ -210,10 +253,12 @@ function renderStave() {
   drawClef(svg);
 
   let x = CLEF_WIDTH + 20;
+  let index = 0;
   bars.forEach((bar) => {
     bar.forEach((note) => {
-      drawNote(svg, x, note);
+      drawNote(svg, x, note, index);
       x += NOTE_SLOT_WIDTH;
+      index += 1;
     });
     svg.appendChild(
       svgEl("line", { x1: x, y1: TOP_LINE_Y, x2: x, y2: BOTTOM_LINE_Y, stroke: "#333", "stroke-width": 1.2 })
@@ -243,3 +288,6 @@ document.querySelectorAll(".key").forEach((key) => {
   key.addEventListener("pointerup", () => key.classList.remove("active"));
   key.addEventListener("pointerleave", () => key.classList.remove("active"));
 });
+
+document.getElementById("play-btn").addEventListener("click", playMelody);
+document.getElementById("undo-btn").addEventListener("click", undo);

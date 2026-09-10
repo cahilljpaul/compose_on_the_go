@@ -91,3 +91,26 @@ h1 {
   border-radius: 8px;
   border: 1px solid #eee;
 }
+
+.notehead.playing {
+  fill: #6b4fbb !important;
+}
+
+.controls {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.controls button {
+  padding: 10px 20px;
+  border: 1px solid #ccc;
+  border-radius: 20px;
+  background: #fff;
+  font-size: 0.95rem;
+  color: #333;
+}
+
+.controls button:disabled {
+  opacity: 0.5;
+}
