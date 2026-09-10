@@ -86,14 +86,8 @@ h1 {
   width: 100%;
   max-width: 480px;
   margin-top: 16px;
-  font-family: monospace;
-  font-size: 0.9rem;
-  color: #333;
-  white-space: pre-wrap;
-}
-
-.melody .bar {
-  display: block;
-  padding: 4px 0;
-  border-bottom: 1px dashed #ccc;
+  overflow-x: auto;
+  background: #fff;
+  border-radius: 8px;
+  border: 1px solid #eee;
 }

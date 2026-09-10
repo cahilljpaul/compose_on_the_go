@@ -78,36 +78,150 @@ function addNote(pitch) {
   }
 
   melody.push({ pitch, duration: selectedDuration, beats });
-  renderMelody();
+  renderStave();
 }
 
-function renderMelody() {
-  const container = document.getElementById("melody");
-  container.innerHTML = "";
-
+function groupIntoBars() {
+  const bars = [];
   let bar = [];
   let beatsInBar = 0;
-  let barNumber = 1;
-
-  function flushBar() {
-    if (bar.length === 0) return;
-    const barEl = document.createElement("span");
-    barEl.className = "bar";
-    barEl.textContent = `Bar ${barNumber}: ${bar.map((n) => `${n.pitch}(${n.duration})`).join(" ")}`;
-    container.appendChild(barEl);
-    barNumber += 1;
-    bar = [];
-    beatsInBar = 0;
-  }
 
   for (const note of melody) {
     bar.push(note);
     beatsInBar += note.beats;
     if (beatsInBar >= BEATS_PER_BAR) {
-      flushBar();
+      bars.push(bar);
+      bar = [];
+      beatsInBar = 0;
     }
   }
-  flushBar();
+  if (bar.length > 0) bars.push(bar);
+  return bars;
+}
+
+// Vertical position of each pitch, in half-line-spacing steps up from the
+// bottom stave line (E4). Alternating lines/spaces of a treble stave.
+const NOTE_STEP = {
+  C4: -2,
+  D4: -1,
+  E4: 0,
+  F4: 1,
+  G4: 2,
+  A4: 3,
+  B4: 4,
+  C5: 5,
+};
+
+const LINE_SPACING = 10;
+const HALF_STEP = LINE_SPACING / 2;
+const BOTTOM_LINE_Y = 90;
+const TOP_LINE_Y = BOTTOM_LINE_Y - 4 * LINE_SPACING;
+const NOTE_SLOT_WIDTH = 45;
+const BAR_LINE_GAP = 15;
+const CLEF_WIDTH = 60;
+const SVG_HEIGHT = 150;
+
+function pitchY(pitch) {
+  return BOTTOM_LINE_Y - NOTE_STEP[pitch] * HALF_STEP;
+}
+
+function svgEl(tag, attrs) {
+  const el = document.createElementNS("http://www.w3.org/2000/svg", tag);
+  for (const [key, value] of Object.entries(attrs)) {
+    el.setAttribute(key, value);
+  }
+  return el;
+}
+
+function drawStaveLines(svg, width) {
+  for (let i = 0; i < 5; i++) {
+    const y = TOP_LINE_Y + i * LINE_SPACING;
+    svg.appendChild(
+      svgEl("line", { x1: 5, y1: y, x2: width - 5, y2: y, stroke: "#333", "stroke-width": 1 })
+    );
+  }
+}
+
+function drawClef(svg) {
+  const clef = svgEl("text", {
+    x: 8,
+    y: BOTTOM_LINE_Y + 6,
+    "font-size": 62,
+    "font-family": "Bravura, Leland, 'Noto Music', 'Apple Symbols', serif",
+  });
+  clef.textContent = "\u{1D11E}";
+  svg.appendChild(clef);
+}
+
+function drawNote(svg, x, note) {
+  const y = pitchY(note.pitch);
+  const isHollow = note.duration === "whole" || note.duration === "half";
+  const hasStem = note.duration !== "whole";
+
+  if (note.pitch === "C4") {
+    svg.appendChild(
+      svgEl("line", { x1: x - 9, y1: y, x2: x + 9, y2: y, stroke: "#333", "stroke-width": 1 })
+    );
+  }
+
+  svg.appendChild(
+    svgEl("ellipse", {
+      cx: x,
+      cy: y,
+      rx: 6,
+      ry: 4.5,
+      fill: isHollow ? "none" : "#222",
+      stroke: "#222",
+      "stroke-width": 1.2,
+    })
+  );
+
+  if (hasStem) {
+    const stemTopY = y - 32;
+    svg.appendChild(
+      svgEl("line", { x1: x + 6, y1: y, x2: x + 6, y2: stemTopY, stroke: "#222", "stroke-width": 1.2 })
+    );
+
+    if (note.duration === "eighth") {
+      svg.appendChild(
+        svgEl("path", {
+          d: `M ${x + 6} ${stemTopY} q 10 4 10 16`,
+          fill: "none",
+          stroke: "#222",
+          "stroke-width": 1.2,
+        })
+      );
+    }
+  }
+}
+
+function renderStave() {
+  const container = document.getElementById("melody");
+  container.innerHTML = "";
+
+  if (melody.length === 0) return;
+
+  const bars = groupIntoBars();
+  const totalNotes = melody.length;
+  const width = CLEF_WIDTH + totalNotes * NOTE_SLOT_WIDTH + bars.length * BAR_LINE_GAP + 20;
+
+  const svg = svgEl("svg", { width, height: SVG_HEIGHT, viewBox: `0 0 ${width} ${SVG_HEIGHT}` });
+  drawStaveLines(svg, width);
+  drawClef(svg);
+
+  let x = CLEF_WIDTH + 20;
+  bars.forEach((bar) => {
+    bar.forEach((note) => {
+      drawNote(svg, x, note);
+      x += NOTE_SLOT_WIDTH;
+    });
+    svg.appendChild(
+      svgEl("line", { x1: x, y1: TOP_LINE_Y, x2: x, y2: BOTTOM_LINE_Y, stroke: "#333", "stroke-width": 1.2 })
+    );
+    x += BAR_LINE_GAP;
+  });
+
+  container.appendChild(svg);
 }
 
 document.querySelectorAll(".duration").forEach((button) => {
