@@ -35,8 +35,7 @@ function getAudioContext() {
   return audioContext;
 }
 
-function scheduleNote(pitch, seconds, startTime) {
-  const ctx = getAudioContext();
+function scheduleNoteOn(ctx, pitch, seconds, startTime) {
   const oscillator = ctx.createOscillator();
   const gain = ctx.createGain();
 
@@ -52,6 +51,10 @@ function scheduleNote(pitch, seconds, startTime) {
 
   oscillator.start(startTime);
   oscillator.stop(startTime + seconds);
+}
+
+function scheduleNote(pitch, seconds, startTime) {
+  scheduleNoteOn(getAudioContext(), pitch, seconds, startTime);
 }
 
 function playNote(pitch, beats) {
@@ -453,6 +456,57 @@ function svgToPngBlob(svg) {
   });
 }
 
+function encodeWavMono(samples, sampleRate) {
+  const bytesPerSample = 2;
+  const dataSize = samples.length * bytesPerSample;
+  const buffer = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(buffer);
+
+  function writeString(offset, str) {
+    for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+  }
+
+  writeString(0, "RIFF");
+  view.setUint32(4, 36 + dataSize, true);
+  writeString(8, "WAVE");
+  writeString(12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * bytesPerSample, true);
+  view.setUint16(32, bytesPerSample, true);
+  view.setUint16(34, 16, true);
+  writeString(36, "data");
+  view.setUint32(40, dataSize, true);
+
+  let offset = 44;
+  for (let i = 0; i < samples.length; i++) {
+    const s = Math.max(-1, Math.min(1, samples[i]));
+    view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+    offset += bytesPerSample;
+  }
+
+  return new Blob([buffer], { type: "audio/wav" });
+}
+
+async function renderMelodyToWavBlob() {
+  const secondsPerBeat = getSecondsPerBeat();
+  const totalSeconds = melody.reduce((sum, note) => sum + note.beats * secondsPerBeat, 0) + 0.3;
+  const sampleRate = 44100;
+  const offlineCtx = new OfflineAudioContext(1, Math.ceil(sampleRate * totalSeconds), sampleRate);
+
+  let t = 0;
+  melody.forEach((note) => {
+    const seconds = note.beats * secondsPerBeat;
+    scheduleNoteOn(offlineCtx, note.pitch, seconds, t);
+    t += seconds;
+  });
+
+  const buffer = await offlineCtx.startRendering();
+  return encodeWavMono(buffer.getChannelData(0), buffer.sampleRate);
+}
+
 async function exportCard() {
   if (melody.length === 0) {
     showMessage("Add some notes before exporting");
@@ -464,29 +518,43 @@ async function exportCard() {
   const message = document.getElementById("message-input").value.trim();
 
   const svg = buildCardSvg(title, tempo, message);
-  const blob = await svgToPngBlob(svg);
+  const [imageBlob, audioBlob] = await Promise.all([svgToPngBlob(svg), renderMelodyToWavBlob()]);
 
   const preview = document.getElementById("card-preview");
-  preview.src = URL.createObjectURL(blob);
+  preview.src = URL.createObjectURL(imageBlob);
   preview.classList.add("visible");
 
-  const file = new File([blob], "few-bars.png", { type: "image/png" });
+  const audioPreview = document.getElementById("audio-preview");
+  audioPreview.src = URL.createObjectURL(audioBlob);
+  audioPreview.classList.add("visible");
 
-  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+  const imageFile = new File([imageBlob], "few-bars.png", { type: "image/png" });
+  const audioFile = new File([audioBlob], "few-bars.wav", { type: "audio/wav" });
+
+  if (navigator.canShare && navigator.canShare({ files: [imageFile, audioFile] })) {
     try {
-      await navigator.share({ files: [file], title: title || "Few Bars sketch", text: message });
+      await navigator.share({
+        files: [imageFile, audioFile],
+        title: title || "Few Bars sketch",
+        text: message,
+      });
       return;
     } catch (err) {
       if (err.name === "AbortError") return;
     }
   }
 
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = "few-bars.png";
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
+  [
+    { blob: imageBlob, name: "few-bars.png" },
+    { blob: audioBlob, name: "few-bars.wav" },
+  ].forEach(({ blob, name }) => {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  });
 }
 
 document.querySelectorAll(".duration").forEach((button) => {

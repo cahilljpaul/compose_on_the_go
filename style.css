@@ -84,7 +84,6 @@ h1 {
 
 .melody {
   width: 100%;
-  max-width: 480px;
   margin-top: 16px;
   overflow-x: auto;
   background: #fff;
@@ -221,6 +220,17 @@ h1 {
 }
 
 .card-preview.visible {
+  display: block;
+}
+
+.audio-preview {
+  display: none;
+  width: 100%;
+  max-width: 480px;
+  margin-top: 10px;
+}
+
+.audio-preview.visible {
   display: block;
 }
 
