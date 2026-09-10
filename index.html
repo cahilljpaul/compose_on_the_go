@@ -10,6 +10,13 @@
   <h1>Few Bars</h1>
   <p class="subtitle">Tap a key</p>
 
+  <div id="durations" class="durations">
+    <button class="duration" data-duration="whole">Whole</button>
+    <button class="duration" data-duration="half">Half</button>
+    <button class="duration active" data-duration="quarter">Crotchet</button>
+    <button class="duration" data-duration="eighth">Quaver</button>
+  </div>
+
   <div id="piano" class="piano">
     <button class="key" data-note="C4">C</button>
     <button class="key" data-note="D4">D</button>
@@ -20,6 +27,9 @@
     <button class="key" data-note="B4">B</button>
     <button class="key" data-note="C5">C</button>
   </div>
+
+  <p id="message" class="message"></p>
+  <div id="melody" class="melody"></div>
 
   <script src="script.js"></script>
 </body>

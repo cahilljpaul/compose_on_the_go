@@ -54,3 +54,46 @@ h1 {
   background: #d6c8ff;
   transform: scale(0.97);
 }
+
+.durations {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.duration {
+  padding: 8px 14px;
+  border: 1px solid #ccc;
+  border-radius: 20px;
+  background: #fff;
+  font-size: 0.9rem;
+  color: #444;
+}
+
+.duration.active {
+  background: #6b4fbb;
+  border-color: #6b4fbb;
+  color: #fff;
+}
+
+.message {
+  min-height: 1.2em;
+  color: #b33;
+  font-size: 0.9rem;
+}
+
+.melody {
+  width: 100%;
+  max-width: 480px;
+  margin-top: 16px;
+  font-family: monospace;
+  font-size: 0.9rem;
+  color: #333;
+  white-space: pre-wrap;
+}
+
+.melody .bar {
+  display: block;
+  padding: 4px 0;
+  border-bottom: 1px dashed #ccc;
+}
