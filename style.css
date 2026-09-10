@@ -167,3 +167,46 @@ h1 {
 .card-preview.visible {
   display: block;
 }
+
+.divider {
+  width: 100%;
+  max-width: 480px;
+  border: none;
+  border-top: 1px solid #ddd;
+  margin: 28px 0;
+}
+
+.hum {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  max-width: 480px;
+}
+
+.hum-title {
+  margin: 0;
+  font-size: 1.1rem;
+  color: #444;
+}
+
+#hum-btn {
+  padding: 12px 24px;
+  border: none;
+  border-radius: 24px;
+  background: #b3492f;
+  color: #fff;
+  font-size: 1rem;
+}
+
+#hum-btn.listening {
+  background: #7a3120;
+}
+
+.pitch-readout {
+  font-family: monospace;
+  font-size: 1.1rem;
+  color: #333;
+  min-height: 1.4em;
+}

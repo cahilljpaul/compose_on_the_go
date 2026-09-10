@@ -454,3 +454,115 @@ document.querySelectorAll(".key").forEach((key) => {
 document.getElementById("play-btn").addEventListener("click", playMelody);
 document.getElementById("undo-btn").addEventListener("click", undo);
 document.getElementById("export-btn").addEventListener("click", exportCard);
+
+const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+
+function frequencyToNoteName(freq) {
+  const midi = Math.round(69 + 12 * Math.log2(freq / 440));
+  const name = NOTE_NAMES[((midi % 12) + 12) % 12];
+  const octave = Math.floor(midi / 12) - 1;
+  return `${name}${octave}`;
+}
+
+// Autocorrelation pitch detector: finds the lag (period) at which the
+// waveform best matches a shifted copy of itself, then refines it with
+// parabolic interpolation around the peak for sub-sample accuracy.
+function autoCorrelate(buffer, sampleRate) {
+  const size = buffer.length;
+
+  let rms = 0;
+  for (let i = 0; i < size; i++) rms += buffer[i] * buffer[i];
+  rms = Math.sqrt(rms / size);
+  if (rms < 0.01) return -1;
+
+  let start = 0;
+  let end = size - 1;
+  const threshold = 0.2;
+  while (start < size / 2 && Math.abs(buffer[start]) < threshold) start++;
+  while (end > size / 2 && Math.abs(buffer[end]) < threshold) end--;
+
+  const trimmed = buffer.slice(start, end);
+  const n = trimmed.length;
+  if (n < 8) return -1;
+
+  const correlation = new Array(n).fill(0);
+  for (let lag = 0; lag < n; lag++) {
+    for (let i = 0; i < n - lag; i++) {
+      correlation[lag] += trimmed[i] * trimmed[i + lag];
+    }
+  }
+
+  let d = 0;
+  while (d < n - 1 && correlation[d] > correlation[d + 1]) d++;
+
+  let maxValue = -1;
+  let maxLag = -1;
+  for (let lag = d; lag < n; lag++) {
+    if (correlation[lag] > maxValue) {
+      maxValue = correlation[lag];
+      maxLag = lag;
+    }
+  }
+  if (maxLag <= 0) return -1;
+
+  const prev = correlation[maxLag - 1] ?? correlation[maxLag];
+  const curr = correlation[maxLag];
+  const next = correlation[maxLag + 1] ?? correlation[maxLag];
+  const a = (prev + next - 2 * curr) / 2;
+  const b = (next - prev) / 2;
+  const refinedLag = a ? maxLag - b / (2 * a) : maxLag;
+
+  return refinedLag > 0 ? sampleRate / refinedLag : -1;
+}
+
+let humStream = null;
+let humSource = null;
+let humAnalyser = null;
+let humRafId = null;
+let isHumming = false;
+
+async function startHumming() {
+  const ctx = getAudioContext();
+  humStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  humSource = ctx.createMediaStreamSource(humStream);
+  humAnalyser = ctx.createAnalyser();
+  humAnalyser.fftSize = 2048;
+  humSource.connect(humAnalyser);
+
+  isHumming = true;
+  document.getElementById("hum-btn").textContent = "Stop humming";
+  document.getElementById("hum-btn").classList.add("listening");
+  detectPitchLoop();
+}
+
+function stopHumming() {
+  isHumming = false;
+  cancelAnimationFrame(humRafId);
+  humStream.getTracks().forEach((track) => track.stop());
+  humSource.disconnect();
+
+  document.getElementById("hum-btn").textContent = "Start humming";
+  document.getElementById("hum-btn").classList.remove("listening");
+  document.getElementById("pitch-readout").textContent = "—";
+}
+
+function detectPitchLoop() {
+  if (!isHumming) return;
+
+  const buffer = new Float32Array(humAnalyser.fftSize);
+  humAnalyser.getFloatTimeDomainData(buffer);
+  const freq = autoCorrelate(buffer, getAudioContext().sampleRate);
+
+  const readout = document.getElementById("pitch-readout");
+  readout.textContent = freq > 0 ? `${freq.toFixed(1)} Hz  ≈  ${frequencyToNoteName(freq)}` : "...";
+
+  humRafId = requestAnimationFrame(detectPitchLoop);
+}
+
+document.getElementById("hum-btn").addEventListener("click", () => {
+  if (isHumming) {
+    stopHumming();
+  } else {
+    startHumming().catch((err) => showMessage(`Microphone access failed: ${err.message}`));
+  }
+});
