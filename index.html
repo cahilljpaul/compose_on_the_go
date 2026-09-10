@@ -34,7 +34,19 @@
   <div id="controls" class="controls">
     <button id="play-btn">Play</button>
     <button id="undo-btn">Undo</button>
+    <label class="tempo-label">
+      <input id="tempo-input" type="number" min="40" max="220" value="90" />
+      bpm
+    </label>
   </div>
+
+  <div id="share" class="share">
+    <input id="title-input" type="text" placeholder="Title (optional)" maxlength="40" />
+    <input id="message-input" type="text" placeholder="Message (optional)" maxlength="80" />
+    <button id="export-btn">Export / Share</button>
+  </div>
+
+  <img id="card-preview" class="card-preview" alt="" />
 
   <script src="script.js"></script>
 </body>

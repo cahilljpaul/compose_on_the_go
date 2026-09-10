@@ -114,3 +114,56 @@ h1 {
 .controls button:disabled {
   opacity: 0.5;
 }
+
+.tempo-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.9rem;
+  color: #444;
+  margin-left: auto;
+}
+
+.tempo-label input {
+  width: 56px;
+  padding: 6px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+}
+
+.share {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  max-width: 480px;
+  margin-top: 20px;
+}
+
+.share input {
+  padding: 10px 12px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  font-size: 0.95rem;
+}
+
+.share button {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 20px;
+  background: #6b4fbb;
+  color: #fff;
+  font-size: 0.95rem;
+}
+
+.card-preview {
+  display: none;
+  max-width: 100%;
+  margin-top: 16px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.card-preview.visible {
+  display: block;
+}
