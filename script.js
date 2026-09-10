@@ -515,11 +515,36 @@ function autoCorrelate(buffer, sampleRate) {
   return refinedLag > 0 ? sampleRate / refinedLag : -1;
 }
 
+const DURATION_OPTIONS_BEATS = [0.5, 1, 2, 4];
+const BEATS_TO_DURATION_NAME = { 0.5: "eighth", 1: "quarter", 2: "half", 4: "whole" };
+const MIN_HUM_NOTE_BEATS = 0.2;
+
+function nearestAllowedPitch(freq) {
+  let best = null;
+  let bestDiff = Infinity;
+  for (const [pitch, pitchFreq] of Object.entries(NOTE_FREQUENCIES)) {
+    const diff = Math.abs(Math.log2(freq / pitchFreq));
+    if (diff < bestDiff) {
+      bestDiff = diff;
+      best = pitch;
+    }
+  }
+  return best;
+}
+
+function nearestDurationBeats(rawBeats) {
+  return DURATION_OPTIONS_BEATS.reduce((best, option) =>
+    Math.abs(option - rawBeats) < Math.abs(best - rawBeats) ? option : best
+  );
+}
+
 let humStream = null;
 let humSource = null;
 let humAnalyser = null;
 let humRafId = null;
 let isHumming = false;
+let humCurrentPitch = null;
+let humNoteStartedAt = 0;
 
 async function startHumming() {
   const ctx = getAudioContext();
@@ -530,6 +555,7 @@ async function startHumming() {
   humSource.connect(humAnalyser);
 
   isHumming = true;
+  humCurrentPitch = null;
   document.getElementById("hum-btn").textContent = "Stop humming";
   document.getElementById("hum-btn").classList.add("listening");
   detectPitchLoop();
@@ -538,6 +564,10 @@ async function startHumming() {
 function stopHumming() {
   isHumming = false;
   cancelAnimationFrame(humRafId);
+  if (humCurrentPitch !== null) {
+    finalizeHummedNote();
+    humCurrentPitch = null;
+  }
   humStream.getTracks().forEach((track) => track.stop());
   humSource.disconnect();
 
@@ -546,15 +576,48 @@ function stopHumming() {
   document.getElementById("pitch-readout").textContent = "—";
 }
 
+function finalizeHummedNote() {
+  const elapsedSeconds = (performance.now() - humNoteStartedAt) / 1000;
+  const rawBeats = elapsedSeconds / getSecondsPerBeat();
+  if (rawBeats < MIN_HUM_NOTE_BEATS) return;
+
+  let beats = nearestDurationBeats(rawBeats);
+  const room = BEATS_PER_BAR - beatsUsedInLastBar();
+  while (beats > room) {
+    beats = DURATION_OPTIONS_BEATS[DURATION_OPTIONS_BEATS.indexOf(beats) - 1];
+  }
+
+  melody.push({ pitch: humCurrentPitch, duration: BEATS_TO_DURATION_NAME[beats], beats });
+  renderStave();
+}
+
 function detectPitchLoop() {
   if (!isHumming) return;
 
   const buffer = new Float32Array(humAnalyser.fftSize);
   humAnalyser.getFloatTimeDomainData(buffer);
   const freq = autoCorrelate(buffer, getAudioContext().sampleRate);
-
   const readout = document.getElementById("pitch-readout");
-  readout.textContent = freq > 0 ? `${freq.toFixed(1)} Hz  ≈  ${frequencyToNoteName(freq)}` : "...";
+
+  if (freq > 0) {
+    const pitch = nearestAllowedPitch(freq);
+    readout.textContent = `${freq.toFixed(1)} Hz  ≈  ${frequencyToNoteName(freq)}  →  ${pitch}`;
+
+    if (humCurrentPitch === null) {
+      humCurrentPitch = pitch;
+      humNoteStartedAt = performance.now();
+    } else if (pitch !== humCurrentPitch) {
+      finalizeHummedNote();
+      humCurrentPitch = pitch;
+      humNoteStartedAt = performance.now();
+    }
+  } else {
+    readout.textContent = "...";
+    if (humCurrentPitch !== null) {
+      finalizeHummedNote();
+      humCurrentPitch = null;
+    }
+  }
 
   humRafId = requestAnimationFrame(detectPitchLoop);
 }
