@@ -453,9 +453,10 @@ function buildCardSvg(title, tempo, message) {
       y: 0,
       width: cardWidth,
       height: cardHeight,
-      rx: 14,
-      fill: "#fdfaf5",
-      stroke: "#e2ddd2",
+      rx: 0,
+      fill: "#f1ece0",
+      stroke: "#111",
+      "stroke-width": 4,
     })
   );
 
